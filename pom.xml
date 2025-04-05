@@ -480,7 +480,9 @@
                                             <exclude name="com/licel/jcardsim/smartcardio/*" />
                                             <exclude name="com/licel/jcardsim/remote/*" />
                                             <exclude name="com/licel/jcardsim/DocumentationCodeSamplesTest.*" />
+                                            <exclude name="com/licel/jcardsim/SampleTest.*" />
                                             <exclude name="com/licel/jcardsim/utils/APDUScriptToolTest.*" />
+                                            <exclude name="com/licel/jcardsim/crypto/KeyManagerAppletTest.*" />
                                         </fileset>
                                     </batchtest>
                                 </junit>

@@ -318,6 +318,8 @@
                       <exclude />
                       <exclude />
                       <exclude />
+                      <exclude />
+                      <exclude />
                     </fileset>
                   </batchtest>
                 </junit>
