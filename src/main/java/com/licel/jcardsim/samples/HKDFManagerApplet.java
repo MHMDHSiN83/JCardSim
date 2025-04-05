@@ -2,7 +2,6 @@ package com.licel.jcardsim.samples;
 
 import javacard.framework.*;
 import javacard.security.*;
-import javacardx.crypto.*;
 
 public class HKDFManagerApplet extends Applet {
     // Instruction byte identifiers for different operations
