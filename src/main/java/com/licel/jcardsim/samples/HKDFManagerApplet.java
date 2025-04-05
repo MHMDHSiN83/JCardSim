@@ -8,20 +8,16 @@ public class HKDFManagerApplet extends Applet {
     private static final byte INS_EXTRACT = (byte) 0x10;
     private static final byte INS_EXPAND  = (byte) 0x20;
     private static final byte INS_ROTATE  = (byte) 0x30;
+    private static final byte INS_SET_SALT = (byte) 0x40; // New instruction for setting salt
 
     // Length of the PRK (Pseudo-Random Key) which is 32 bytes for SHA-256
     private static final short PRK_LENGTH = 32; // SHA-256 length
+    private static final short MAX_SALT_LENGTH = 64; // Maximum allowed salt length
 
-    // Static salt used in HKDF operations (could be predefined or set for the application)
-    private static final byte[] STATIC_SALT = {
-        (byte)0xDA, (byte)0xAC, 0x3E, 0x10, 0x55, (byte)0xB5, (byte)0xF1, 0x3E,
-        0x53, (byte)0xE4, 0x70, (byte)0xA8, 0x77, 0x79, (byte)0x8E, 0x0A,
-        (byte)0x89, (byte)0xAE, (byte)0x96, 0x5F, 0x19, 0x5D, 0x53, 0x62,
-        0x58, (byte)0x84, 0x2C, 0x09, (byte)0xAD, 0x6E, 0x20, (byte)0xD4
-    };
-
-    // Buffers to hold temporary data such as the PRK (Pseudo-Random Key)
+    // Buffers to hold temporary data
     private byte[] prkBuffer;
+    private byte[] saltBuffer; // Buffer for dynamic salt
+    private short saltLength; // Current salt length
 
     // HMAC signature instance for SHA-256
     private Signature hmac;
@@ -32,8 +28,10 @@ public class HKDFManagerApplet extends Applet {
 
     // Constructor to initialize the applet
     private HKDFManagerApplet() {
-        // Initialize buffer for PRK (32 bytes for SHA-256)
+        // Initialize buffers
         prkBuffer = new byte[PRK_LENGTH];
+        saltBuffer = new byte[MAX_SALT_LENGTH];
+        saltLength = 0; // Initially no salt
 
         // Initialize HMAC for SHA-256 hashing
         hmac = Signature.getInstance(Signature.ALG_HMAC_SHA_256, false);
@@ -65,48 +63,62 @@ public class HKDFManagerApplet extends Applet {
         // Switch between the instructions
         switch (ins) {
             case INS_EXTRACT:
-                // Handle the HKDF extract operation
                 hkdfExtract(apdu);
                 break;
             case INS_EXPAND:
-                // Handle the HKDF expand operation
                 hkdfExpand(apdu);
                 break;
             case INS_ROTATE:
-                // Handle the HKDF rotate operation
                 hkdfRotate(apdu);
                 break;
+            case INS_SET_SALT:
+                setSalt(apdu);
+                break;
             default:
-                // If the instruction is not recognized, throw an error
                 ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
         }
     }
 
-    // Method for the HKDF extract operation (to derive PRK from IKM and salt)
-    private void hkdfExtract(APDU apdu) {
-        // Get the buffer from the APDU
+    // New method to set dynamic salt
+    private void setSalt(APDU apdu) {
         byte[] buffer = apdu.getBuffer();
+        
+        // Get the length of the incoming salt data
+        short saltLen = apdu.setIncomingAndReceive();
+        
+        // Check if the salt length is valid
+        if (saltLen < 1 || saltLen > MAX_SALT_LENGTH) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+        
+        // Copy the salt into the buffer
+        Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, saltBuffer, (short) 0, saltLen);
+        saltLength = saltLen;
+        
+        // Optional: Send success status
+        ISOException.throwIt(ISO7816.SW_NO_ERROR);
+    }
 
-        // Get the length of the input key material (IKM)
+    // Modified hkdfExtract to use dynamic salt
+    private void hkdfExtract(APDU apdu) {
+        byte[] buffer = apdu.getBuffer();
         short ikmLen = apdu.setIncomingAndReceive();
 
-        // Check if the IKM length is valid
         if (ikmLen < 1) {
             ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
         }
 
-        // Set the salt for the HMAC operation
-        saltKey.setKey(STATIC_SALT, (short) 0, (short) STATIC_SALT.length);
+        // Check if salt has been set
+        if (saltLength == 0) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
 
-        // Initialize HMAC with the salt key in signing mode
+        // Set the dynamic salt for the HMAC operation
+        saltKey.setKey(saltBuffer, (short) 0, saltLength);
         hmac.init(saltKey, Signature.MODE_SIGN);
 
-        // Perform HMAC signing to derive the PRK (Pseudo-Random Key)
         short prkLen = hmac.sign(buffer, ISO7816.OFFSET_CDATA, ikmLen, prkBuffer, (short) 0);
-
-        // Copy the derived PRK into the APDU buffer to send it back to the client
         Util.arrayCopyNonAtomic(prkBuffer, (short) 0, buffer, (short) 0, prkLen);
-        // Send the PRK back to the client
         apdu.setOutgoingAndSend((short) 0, prkLen);
     }
 
