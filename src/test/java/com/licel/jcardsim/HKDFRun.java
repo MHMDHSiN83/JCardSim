@@ -38,7 +38,7 @@ public class HKDFRun {
         };
         
         byte[] info = "aes-key".getBytes();
-        short outputLen = 32;
+        short outputLen = 16;
 
         System.out.println("=== TEST PARAMETERS ===");
         System.out.println("Salt:      " + bytesToHex(dynamicSalt));
@@ -84,7 +84,7 @@ public class HKDFRun {
         System.out.println("OKM Match:       " + Arrays.equals(jcOKM, bcOKM));
     }
 
-    // Verbose HKDF-Expand that prints each iteration
+    // Testing the PRK and OKM 
     private static byte[] hkdfExpandVerbose(byte[] prk, byte[] info, int length) {
         try {
             Mac hmac = Mac.getInstance("HmacSHA256");
@@ -123,34 +123,6 @@ public class HKDFRun {
             Mac hmac = Mac.getInstance("HmacSHA256");
             hmac.init(new SecretKeySpec(salt, "HmacSHA256"));
             return hmac.doFinal(ikm);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static byte[] hkdfExpand(byte[] prk, byte[] info, int length) {
-        try {
-            Mac hmac = Mac.getInstance("HmacSHA256");
-            hmac.init(new SecretKeySpec(prk, "HmacSHA256"));
-
-            byte[] result = new byte[length];
-            byte[] t = new byte[0];
-            int offset = 0;
-            byte i = 1;
-
-            while (offset < length) {
-                ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                bos.write(t);
-                bos.write(info);
-                bos.write(i);
-                t = hmac.doFinal(bos.toByteArray());
-                
-                int copyLength = Math.min(t.length, length - offset);
-                System.arraycopy(t, 0, result, offset, copyLength);
-                offset += copyLength;
-                i++;
-            }
-            return result;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
